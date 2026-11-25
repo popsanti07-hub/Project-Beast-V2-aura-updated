@@ -9,40 +9,67 @@ const groups=[
 {id:'5',title:'5 · Plank & meditation',priority:'MANDATORY',tasks:[['Plank','1 minute'],['Meditation','12 minutes']]}
 ];
 const events=[['sprint','100m Sprint','Acceleration and speed mechanics'],['long','Long jump','Approach, take-off and landing'],['high','High jump','Approach, clearance and safe landing'],['1500','1500m Run','Pacing and aerobic endurance']];
-const habits=[['tobacco','No tobacco','Tobacco-free day'],['alcohol','No alcohol','Alcohol-free day'],['reading','Reading','Meet your reading target'],['exercise','Daily movement','Intentional exercise or walk'],['sleep','Sleep routine','Aim for a consistent sleep schedule'],['meditation','Meditation','Mindfulness or breathing'],['study','Study / learning','Focused learning session']];
+const defaultHabits=[{id:'water',name:'Water target',desc:'Reach your daily hydration target',icon:'💧',type:'water',target:3},{id:'tobacco',name:'No tobacco',desc:'Tobacco-free day',icon:'🚭',type:'boolean'},{id:'alcohol',name:'No alcohol',desc:'Alcohol-free day',icon:'🚫',type:'boolean'},{id:'reading',name:'Reading',desc:'Meet your reading target',icon:'📖',type:'minutes',target:30},{id:'exercise',name:'Daily movement',desc:'Intentional exercise or walk',icon:'🏃',type:'boolean'},{id:'sleep',name:'Sleep routine',desc:'Aim for a consistent sleep schedule',icon:'🌙',type:'boolean'},{id:'meditation',name:'Meditation',desc:'Mindfulness or breathing',icon:'🧘',type:'boolean'},{id:'study',name:'Study / learning',desc:'Focused learning session',icon:'🎓',type:'minutes',target:60}];
+const habitDefs=()=>Array.isArray(data.habitDefs)?data.habitDefs:structuredClone(defaultHabits);
+const activeHabits=()=>habitDefs().filter(h=>h.active!==false);
+const activeHabitsForDate=date=>habitDefs().filter(h=>(!h.createdAt||h.createdAt<=date)&&(!h.archivedAt||date<=h.archivedAt));
 const recoveryDefaults={startDate:'',boundaries:{porn:true,masturbation:false},logs:{},urgeEvents:[],restarts:[],unlocked:[],weeklyReviews:{},started:false};
-const defaults={recovery:structuredClone(recoveryDefaults),days:{},records:[],settings:{weekStart:'1',examDate:'',waterTarget:3,readingTarget:30,studyTarget:60},lifeCells:0,rewardClaims:[],ledger:[]};
+const defaults={recovery:structuredClone(recoveryDefaults),days:{},records:[],settings:{weekStart:'1',examDate:'',waterTarget:3,readingTarget:30,studyTarget:60},habitDefs:structuredClone(defaultHabits),lifeCells:0,rewardClaims:[],ledger:[]};
 let data=load(),currentDate=todayISO();
-function load(){try{const old=JSON.parse(localStorage.getItem(KEY));return old?{...defaults,...old,recovery:{...structuredClone(recoveryDefaults),...(old.recovery||{}),boundaries:{...recoveryDefaults.boundaries,...(old.recovery?.boundaries||{})},logs:old.recovery?.logs||{},urgeEvents:old.recovery?.urgeEvents||[],restarts:old.recovery?.restarts||[],unlocked:old.recovery?.unlocked||[],weeklyReviews:old.recovery?.weeklyReviews||{}},settings:{...defaults.settings,...old.settings},days:old.days||{},records:old.records||[],rewardClaims:old.rewardClaims||[],ledger:old.ledger||[],lifeCells:Number(old.lifeCells)||0}:structuredClone(defaults)}catch(e){return structuredClone(defaults)}}
+function load(){try{const old=JSON.parse(localStorage.getItem(KEY));return old?{...defaults,...old,recovery:{...structuredClone(recoveryDefaults),...(old.recovery||{}),boundaries:{...recoveryDefaults.boundaries,...(old.recovery?.boundaries||{})},logs:old.recovery?.logs||{},urgeEvents:old.recovery?.urgeEvents||[],restarts:old.recovery?.restarts||[],unlocked:old.recovery?.unlocked||[],weeklyReviews:old.recovery?.weeklyReviews||{}},settings:{...defaults.settings,...old.settings},habitDefs:Array.isArray(old.habitDefs)?old.habitDefs:structuredClone(defaultHabits),days:old.days||{},records:old.records||[],rewardClaims:old.rewardClaims||[],ledger:old.ledger||[],lifeCells:Number(old.lifeCells)||0}:structuredClone(defaults)}catch(e){return structuredClone(defaults)}}
 function save(){localStorage.setItem(KEY,JSON.stringify(data))}
 function day(date=currentDate){if(!data.days[date])data.days[date]={tasks:{},events:{},reflection:{},habits:{waterMl:0}};let x=data.days[date];x.tasks=x.tasks||{};x.events=x.events||{};x.reflection=x.reflection||{};x.habits=x.habits||{waterMl:0};return x}
 function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
-function claim(id,amount,label,date=currentDate){if(data.rewardClaims.includes(id))return;data.rewardClaims.push(id);data.lifeCells+=amount;data.ledger.unshift({date,amount,label});}
-function completedHabits(date){let h=(data.days[date]||{habits:{}}).habits||{},t=data.settings;return (Number(h.waterMl||0)>=Number(t.waterTarget||3)*1000?1:0)+habits.filter(([id])=>id==='reading'?Number(h.readingMinutes||0)>=Number(t.readingTarget||30):id==='study'?Number(h.studyMinutes||0)>=Number(t.studyTarget||60):!!h[id]).length}
+function claim(id,amount,label,date=currentDate){if(data.rewardClaims.includes(id))return;data.rewardClaims.push(id);data.lifeCells+=amount;data.ledger.unshift({date,amount,label,claimId:id});}
+function habitValueDone(habit,date){let h=(data.days[date]||{habits:{}}).habits||{};if(habit.type==='water')return Number(h.waterMl||0)>=Number(data.settings.waterTarget||habit.target||3)*1000;if(habit.type==='minutes'){let target=habit.id==='reading'?data.settings.readingTarget:habit.id==='study'?data.settings.studyTarget:habit.target;return Number(h[habit.id+'Minutes']||0)>=Number(target||habit.target||1)}return !!h[habit.id]}
+function completedHabits(date){return activeHabitsForDate(date).filter(h=>habitValueDone(h,date)).length}
 function habitCount(date=currentDate){return completedHabits(date)}
 function checkHabitRewards(date=currentDate){
- let h=day(date).habits, water=Number(h.waterMl||0)>=Number(data.settings.waterTarget||3)*1000;
- const done={water,...Object.fromEntries(habits.map(([id])=>[id,id==='reading'?Number(h.readingMinutes||0)>=Number(data.settings.readingTarget||30):id==='study'?Number(h.studyMinutes||0)>=Number(data.settings.studyTarget||60):!!h[id]]))};
- Object.entries(done).forEach(([id,v])=>{if(v)claim(`${date}:habit:${id}`,10,`${id==='water'?'Water':(habits.find(x=>x[0]===id)||[])[1]||id} completed`,date)});
- if(Object.values(done).every(Boolean))claim(`${date}:daily-bonus`,50,'All daily habits completed',date);
- const ws=startOfWeek(date,data.settings.weekStart||'1'),week=[];for(let i=0;i<7;i++){let d=new Date(ws+'T12:00:00');d.setDate(d.getDate()+i);week.push(iso(d))}
- if(week.every(d=>data.rewardClaims.includes(`${d}:daily-bonus`)))claim(`${ws}:weekly-bonus`,150,'7-day consistency bonus',date);
- save();
+ const dates=new Set([...Object.keys(data.days),date]);
+ // Reconcile previously issued habit rewards against the current truth. A reversed action reverses its reward.
+ for(const d of dates){
+  const defs=activeHabitsForDate(d),desired=new Map();
+  defs.forEach(h=>{if(habitValueDone(h,d))desired.set(`${d}:habit:${h.id}`,{amount:10,label:`${h.name} completed`,date:d})});
+  if(defs.length&&defs.every(h=>habitValueDone(h,d)))desired.set(`${d}:daily-bonus`,{amount:50,label:'All daily habits completed',date:d});
+  const ws=startOfWeek(d,data.settings.weekStart||'1'),week=[];for(let i=0;i<7;i++){let dt=new Date(ws+'T12:00:00');dt.setDate(dt.getDate()+i);week.push(iso(dt))}
+  if(week.every(dayDate=>data.rewardClaims.includes(`${dayDate}:daily-bonus`)|| (dayDate===d&&desired.has(`${d}:daily-bonus`))))desired.set(`${ws}:weekly-bonus`,{amount:150,label:'7-day consistency bonus',date:d});
+  // Only reconcile reward IDs for habits that are currently active; archived habit history is retained.
+  const activeIds=new Set(defs.map(h=>`${d}:habit:${h.id}`));
+  for(const id of [...data.rewardClaims]){
+   const isHabit=id.startsWith(`${d}:habit:`),isDaily=id===`${d}:daily-bonus`,isWeekly=id===`${ws}:weekly-bonus`;
+   if(!(isHabit||isDaily||isWeekly))continue;
+   if(isHabit&&!activeIds.has(id))continue;
+   if(!desired.has(id)){
+    const amount=isDaily?50:isWeekly?150:10;
+    let idx=data.ledger.findIndex(x=>x.claimId===id);
+    if(idx<0){const expected=isDaily?'All daily habits completed':isWeekly?'7-day consistency bonus':'completed';idx=data.ledger.findIndex(x=>x.date===d&&Number(x.amount)===amount&&String(x.label||'').toLowerCase().includes(expected.toLowerCase()))}
+    if(idx>=0){data.lifeCells-=Number(data.ledger[idx].amount)||0;data.ledger.splice(idx,1)}else data.lifeCells-=amount
+    data.rewardClaims=data.rewardClaims.filter(x=>x!==id);
+   }
+  }
+  desired.forEach((v,id)=>claim(id,v.amount,v.label,v.date));
+ }
+ data.lifeCells=Math.max(0,Number(data.lifeCells)||0);save();
 }
-function isHabitDone(id,date=currentDate){let h=(data.days[date]||{habits:{}}).habits||{};if(id==='water')return Number(h.waterMl||0)>=Number(data.settings.waterTarget||3)*1000;if(id==='reading')return Number(h.readingMinutes||0)>=Number(data.settings.readingTarget||30);if(id==='study')return Number(h.studyMinutes||0)>=Number(data.settings.studyTarget||60);return !!h[id]}
-function streak(){let n=0,d=new Date(currentDate+'T12:00:00');for(let i=0;i<500;i++){let s=iso(d);if(habitCount(s)===8)n++;else if(i===0&&s===todayISO()){d.setDate(d.getDate()-1);continue}else break;d.setDate(d.getDate()-1)}return n}
+function isHabitDone(id,date=currentDate){let h=habitDefs().find(x=>x.id===id);return h?habitValueDone(h,date):false}
+function streak(){let n=0,d=new Date(currentDate+'T12:00:00');for(let i=0;i<500;i++){let s=iso(d),required=activeHabitsForDate(s).length;if(required>0&&habitCount(s)===required)n++;else if(i===0&&s===todayISO()){d.setDate(d.getDate()-1);continue}else break;d.setDate(d.getDate()-1)}return n}
 function levelInfo(){let levels=['Beginner','Disciplined','Consistent','Warrior','Beast Mode','Legend'];let thresholds=[0,500,1500,3000,5000,8000];let n=0;for(let i=0;i<thresholds.length;i++)if(data.lifeCells>=thresholds[i])n=i;let next=thresholds[n+1]??thresholds[n]+3000;return {name:levels[n],level:n+1,base:thresholds[n],next,progress:Math.min(100,Math.round((data.lifeCells-thresholds[n])/(next-thresholds[n])*100))}}
 function startOfWeek(date,ws){let d=new Date(date+'T12:00:00');d.setDate(d.getDate()-(d.getDay()-Number(ws)+7)%7);return iso(d)}
 function iso(d){return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`}
 function pct(n,d){return d?Math.round(n/d*100):0}
 function renderHabits(){
  let h=day().habits,water=Number(h.waterMl||0),target=Number(data.settings.waterTarget||3)*1000;
- $('waterValue').textContent=(water/1000).toFixed(2).replace(/\.?0+$/,'');$('waterBar').style.width=Math.min(100,water/target*100)+'%';
- $('habitList').innerHTML=habits.map(([id,name,desc])=>{let numeric=id==='reading'||id==='study',val=Number(h[id+'Minutes']||0),goal=Number(data.settings[id+'Target']||(id==='reading'?30:60)),done=isHabitDone(id);return `<div class="habit-card ${done?'done':''}"><div class="habit-symbol">${({tobacco:'🚭',alcohol:'🚫',reading:'📖',exercise:'🏃',sleep:'🌙',meditation:'🧘',study:'🎓'})[id]}</div><div class="habit-copy"><b>${name}</b><small>${desc}</small>${numeric?`<div class="numeric-row"><input type="number" min="0" max="600" step="5" data-minutes="${id}" value="${val}" aria-label="${name} minutes"><span>/ ${goal} min</span></div>`:''}</div>${numeric?`<span class="status ${done?'yes':''}">${done?'✓':'…'}</span>`:`<label class="switch"><input type="checkbox" data-habit="${id}" ${done?'checked':''}><span></span></label>`}</div>`}).join('');
- $('habitCount').textContent=habitCount()+' / 8';$('habitBar').style.width=habitCount()/8*100+'%';$('habitMessage').textContent=habitCount()===8?'All daily habits complete. Excellent discipline.':`${8-habitCount()} habits remaining. Keep building consistency.`;
+ $('waterValue').textContent=(water/1000).toFixed(2).replace(/\.?0+$/,'');$('waterTargetLabel').textContent='/ '+Number(data.settings.waterTarget||3)+' L';$('waterBar').style.width=Math.min(100,water/target*100)+'%';
+ $('habitList').innerHTML=activeHabitsForDate(currentDate).map(item=>{let numeric=item.type==='minutes',val=Number(h[item.id+'Minutes']||0),goal=Number(item.id==='reading'?data.settings.readingTarget:item.id==='study'?data.settings.studyTarget:item.target||30),done=isHabitDone(item.id);return `<div class="habit-card ${done?'done':''}"><div class="habit-symbol">${esc(item.icon||'✓')}</div><div class="habit-copy"><b>${esc(item.name)}</b><small>${esc(item.desc||'')}</small>${numeric?`<div class="numeric-row"><input type="number" min="0" max="600" step="5" data-minutes="${esc(item.id)}" value="${val}" aria-label="${esc(item.name)} minutes"><span>/ ${goal} min</span></div>`:''}</div>${numeric||item.type==='water'?`<span class="status ${done?'yes':''}">${done?'✓':'…'}</span>`:`<label class="switch"><input type="checkbox" data-habit="${esc(item.id)}" ${done?'checked':''}><span></span></label>`}<div class="habit-actions"><button class="tiny-btn" data-edit-habit="${esc(item.id)}" aria-label="Edit ${esc(item.name)}">Edit</button>${item.id!=='water'?`<button class="tiny-btn" data-archive-habit="${esc(item.id)}" aria-label="Archive ${esc(item.name)}">Archive</button>${item.id.startsWith('custom_')?`<button class="tiny-btn danger-text" data-delete-habit="${esc(item.id)}" aria-label="Delete ${esc(item.name)}">Delete</button>`:''}`:''}</div></div>`}).join('');
+ let count=habitCount(),total=activeHabitsForDate(currentDate).length;$('habitCount').textContent=count+' / '+total;$('habitBar').style.width=(total?count/total*100:0)+'%';$('habitMessage').textContent=count===total&&total?'All daily habits complete. Excellent discipline.':`${total-count} habits remaining. Keep building consistency.`;
  document.querySelectorAll('[data-habit]').forEach(el=>el.onchange=()=>{day().habits[el.dataset.habit]=el.checked;checkHabitRewards();renderAll()});
  document.querySelectorAll('[data-minutes]').forEach(el=>el.onchange=()=>{day().habits[el.dataset.minutes+'Minutes']=Math.max(0,Number(el.value)||0);checkHabitRewards();renderAll()});
+ document.querySelectorAll('[data-edit-habit]').forEach(el=>el.onclick=()=>editHabit(el.dataset.editHabit));
+ document.querySelectorAll('[data-archive-habit]').forEach(el=>el.onclick=()=>{let item=habitDefs().find(x=>x.id===el.dataset.archiveHabit);if(!item||!confirm(`Archive “${item.name}”? Past entries remain in your history.`))return;item.active=false;let archiveDate=new Date(todayISO()+'T12:00:00');archiveDate.setDate(archiveDate.getDate()-1);item.archivedAt=iso(archiveDate);save();checkHabitRewards();renderAll()});
+ document.querySelectorAll('[data-delete-habit]').forEach(el=>el.onclick=()=>{let item=habitDefs().find(x=>x.id===el.dataset.deleteHabit);if(!item||!confirm(`Permanently remove “${item.name}” from your habit list? Existing daily records remain in your stored history.`))return;data.habitDefs=data.habitDefs.filter(x=>x.id!==item.id);save();checkHabitRewards();renderAll()});
 }
+function editHabit(id){let item=habitDefs().find(x=>x.id===id);if(!item)return;let name=prompt('Habit name',item.name);if(name===null)return;name=name.trim();if(!name)return alert('Habit name cannot be empty.');let desc=prompt('Short description',item.desc||'')??item.desc;let icon=prompt('Icon / emoji',item.icon||'✓')??item.icon;item.name=name;item.desc=desc;item.icon=icon;if(item.type==='minutes'&&item.id!=='reading'&&item.id!=='study'){let n=Number(prompt('Daily target in minutes',item.target||30));if(Number.isFinite(n)&&n>0)item.target=n}save();checkHabitRewards();renderAll()}
+function addHabit(){let name=prompt('New habit name');if(name===null)return;name=name.trim();if(!name)return;let id='custom_'+Date.now().toString(36);let desc=prompt('Short description','Build this habit consistently')||'';let icon=prompt('Icon / emoji','⭐')||'⭐';let type=confirm('Use a minutes-based target? Choose Cancel for a simple checkbox habit.')?'minutes':'boolean';let item={id,name,desc,icon,type,active:true,createdAt:todayISO()};if(type==='minutes'){let target=Number(prompt('Daily target in minutes','30'));item.target=Number.isFinite(target)&&target>0?target:30}habitDefs().push(item);save();checkHabitRewards();renderAll()}
 function renderWorkout(){
  $('workoutGroups').innerHTML=groups.map(g=>`<div class="group"><div class="group-title"><h3>${g.title}</h3><span class="pill ${g.priority==='MANDATORY'?'green':'amber'}">${g.priority}</span></div>${g.tasks.map((t,i)=>{let id=g.id+'-'+i,done=!!day().tasks[id];return `<label class="task ${done?'done':''}"><input type="checkbox" data-task="${id}" ${done?'checked':''}><span><b>${esc(t[0])}</b><small>${esc(t[1])}</small></span></label>`}).join('')}</div>`).join('');
  document.querySelectorAll('[data-task]').forEach(el=>el.onchange=()=>{day().tasks[el.dataset.task]=el.checked;save();renderHome();});
@@ -51,11 +78,11 @@ function renderWorkout(){
  $('eventPoints').textContent=events.filter(([id])=>day().events[id]).length*10+' points';
 }
 function renderHome(){
- let count=habitCount(),p=pct(count,8),li=levelInfo(),points=events.filter(([id])=>day().events[id]).length*10;
+ let count=habitCount(),total=activeHabitsForDate(currentDate).length,p=pct(count,total),li=levelInfo(),points=events.filter(([id])=>day().events[id]).length*10;
  $('todayLabel').textContent=new Date(currentDate+'T12:00:00').toLocaleDateString(undefined,{weekday:'long',month:'short',day:'numeric',year:'numeric'});
  $('lifeCells').textContent=data.lifeCells.toLocaleString()+' LC';$('levelLabel').textContent=`Level ${li.level} · ${li.name}`;$('levelBar').style.width=li.progress+'%';$('levelProgress').textContent=`${Math.max(0,data.lifeCells-li.base)} / ${li.next-li.base} to next level`;
- $('dailyPct').textContent=p+'%';$('streakDays').textContent=streak();$('petPoints').textContent=points;$('completionText').textContent=`${count} / 8 complete`;$('dailyBar').style.width=p+'%';$('missionHint').textContent=count===8?'Daily habits complete. Keep the momentum.':`${8-count} daily habits remaining. Progress, not perfection.`;
- $('homeHabits').innerHTML=[['water','Water target'],...habits.map(x=>[x[0],x[1]])].map(([id,label])=>`<div class="mini-row"><span>${label}</span><b class="${isHabitDone(id)?'good':''}">${isHabitDone(id)?'DONE':'PENDING'}</b></div>`).join('');
+ $('dailyPct').textContent=p+'%';$('streakDays').textContent=streak();$('petPoints').textContent=points;$('completionText').textContent=`${count} / ${total} complete`;$('dailyBar').style.width=p+'%';$('missionHint').textContent=count===total?'Daily habits complete. Keep the momentum.':`${total-count} daily habits remaining. Progress, not perfection.`;
+ $('homeHabits').innerHTML=activeHabitsForDate(currentDate).map(({id,name})=>[id,name]).map(([id,label])=>`<div class="mini-row"><span>${esc(label)}</span><b class="${isHabitDone(id)?'good':''}">${isHabitDone(id)?'DONE':'PENDING'}</b></div>`).join('');
 }
 function renderRewards(){
  let li=levelInfo();$('rewardBalance').textContent=data.lifeCells.toLocaleString()+' LC';$('rewardLevel').textContent=`Level ${li.level} · ${li.name} · ${li.progress}% to next level`;$('rewardBar').style.width=li.progress+'%';
@@ -65,11 +92,11 @@ function renderRewards(){
 }
 function renderReports(){
  let now=new Date(currentDate+'T12:00:00'),ws=startOfWeek(currentDate,data.settings.weekStart||'1'),week=[],month=[];for(let i=0;i<7;i++){let d=new Date(ws+'T12:00:00');d.setDate(d.getDate()+i);week.push(iso(d))}for(let i=1;i<=new Date(now.getFullYear(),now.getMonth()+1,0).getDate();i++)month.push(iso(new Date(now.getFullYear(),now.getMonth(),i,12)));
- const avg=dates=>{let total=0,done=0;dates.forEach(d=>{if(data.days[d]){total+=8;done+=habitCount(d)}});return {pct:pct(done,total),done,total}};
+ const avg=dates=>{let elapsed=dates.filter(d=>d<=currentDate),total=elapsed.reduce((n,d)=>n+activeHabitsForDate(d).length,0),done=elapsed.reduce((n,d)=>n+habitCount(d),0);return {pct:pct(done,total),done,total}};
  let w=avg(week),m=avg(month);$('weekHabitPct').textContent=w.pct+'%';$('weekWorkout').textContent=week.reduce((n,d)=>n+Object.values(data.days[d]?.tasks||{}).filter(Boolean).length,0);$('weekLC').textContent=data.ledger.filter(x=>week.includes(x.date)).reduce((n,x)=>n+x.amount,0);
  $('monthHabitPct').textContent=m.pct+'%';$('monthPET').textContent=month.reduce((n,d)=>n+events.filter(([id])=>data.days[d]?.events?.[id]).length*10,0);$('monthDays').textContent=month.filter(d=>data.days[d]&&habitCount(d)>0).length;
- $('weekHabitBars').innerHTML=habits.concat([['water','Water']]).map(([id,name])=>{let n=week.filter(d=>isHabitDone(id,d)).length;return `<div class="bar-row"><span>${name}</span><span class="bar-bg"><i style="width:${n/7*100}%"></i></span><b>${n}/7</b></div>`}).join('');
- let dates=Object.keys(data.days).sort().reverse().slice(0,14);$('historyList').innerHTML=dates.length?dates.map(d=>`<div class="history-item"><b>${d}</b> · Habits ${habitCount(d)}/8 · PET ${events.filter(([id])=>data.days[d].events?.[id]).length*10} pts</div>`).join(''):'<div class="empty">Your history appears here as you use the app.</div>';
+ $('weekHabitBars').innerHTML=activeHabitsForDate(currentDate).map(({id,name})=>{let eligible=week.filter(d=>d<=currentDate&&activeHabitsForDate(d).some(h=>h.id===id)),n=eligible.filter(d=>isHabitDone(id,d)).length;return `<div class="bar-row"><span>${esc(name)}</span><span class="bar-bg"><i style="width:${eligible.length?n/eligible.length*100:0}%"></i></span><b>${n}/${eligible.length}</b></div>`}).join('');
+ let dates=Object.keys(data.days).sort().reverse().slice(0,14);$('historyList').innerHTML=dates.length?dates.map(d=>`<div class="history-item"><b>${d}</b> · Habits ${habitCount(d)}/${activeHabitsForDate(d).length} · PET ${events.filter(([id])=>data.days[d].events?.[id]).length*10} pts</div>`).join(''):'<div class="empty">Your history appears here as you use the app.</div>';
 }
 function renderRecords(){$('recordsList').innerHTML=data.records.length?data.records.slice().reverse().map(r=>`<div class="history-item"><b>${esc(r.event)}</b> · ${esc(r.value)}<small>${esc(r.date)}${r.notes?' · '+esc(r.notes):''}</small></div>`).join(''):'<div class="empty">No performance records yet.</div>'}
 
@@ -121,8 +148,8 @@ function renderAll(){renderHabits();renderWorkout();renderHome();renderRewards()
 function showTab(id){document.querySelectorAll('.view').forEach(v=>v.classList.toggle('active',v.id===id));document.querySelectorAll('[data-tab]').forEach(b=>b.classList.toggle('active',b.dataset.tab===id));window.scrollTo(0,0)}
 document.querySelectorAll('[data-tab]').forEach(b=>b.addEventListener('click',()=>showTab(b.dataset.tab)));document.querySelectorAll('[data-go]').forEach(b=>b.addEventListener('click',()=>showTab(b.dataset.go)));
 $('dateInput').value=currentDate;$('recordDate').value=currentDate;$('dateInput').onchange=e=>{currentDate=e.target.value||todayISO();$('recordDate').value=currentDate;renderAll()};
-$('waterPlus').onclick=()=>{day().habits.waterMl=Math.min(10000,Number(day().habits.waterMl||0)+250);checkHabitRewards();renderAll()};
-$('waterMinus').onclick=()=>{day().habits.waterMl=Math.max(0,Number(day().habits.waterMl||0)-250);save();renderAll()};
+$('addHabitBtn').onclick=addHabit;$('waterPlus').onclick=()=>{day().habits.waterMl=Math.min(10000,Number(day().habits.waterMl||0)+250);checkHabitRewards();renderAll()};
+$('waterMinus').onclick=()=>{day().habits.waterMl=Math.max(0,Number(day().habits.waterMl||0)-250);checkHabitRewards();renderAll()};
 $('recordForm').onsubmit=e=>{e.preventDefault();data.records.push({date:$('recordDate').value,event:$('eventType').value,value:$('recordValue').value.trim(),notes:$('recordNotes').value.trim()});save();e.target.reset();$('recordDate').value=currentDate;renderRecords();alert('Performance record saved.')};
 $('saveReflection').onclick=()=>{day().reflection={energy:$('energy').value,fatigue:$('fatigue').value,pain:$('pain').value,notes:$('notes').value};save();$('saveStatus').textContent='Reflection saved on this device.'};
 $('saveSettings').onclick=()=>{data.settings={...data.settings,waterTarget:Number($('waterTarget').value)||3,readingTarget:Number($('readingTarget').value)||30,studyTarget:Number($('studyTarget').value)||60,weekStart:$('weekStart').value,examDate:$('examDate').value};save();checkHabitRewards();renderAll();alert('Settings saved.')};
@@ -141,10 +168,10 @@ let urgeInterval=null,urgeSeconds=600;$('startUrgeTimer').onclick=()=>{if(urgeIn
 function download(name,content,type){let a=document.createElement('a'),url=URL.createObjectURL(new Blob([content],{type}));a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)}
 $('exportBtn').onclick=()=>download('project-beast-mode-backup.json',JSON.stringify(data,null,2),'application/json');
 $('csvBtn').onclick=()=>{let rows=[['Date','Habits completed','Water ml','PET points','Life Cells earned']];Object.keys(data.days).sort().forEach(d=>rows.push([d,habitCount(d),data.days[d].habits?.waterMl||0,events.filter(([id])=>data.days[d].events?.[id]).length*10,data.ledger.filter(x=>x.date===d).reduce((n,x)=>n+x.amount,0)]));download('beast-mode-history.csv',rows.map(r=>r.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(',')).join('\n'),'text/csv')};
-$('importFile').onchange=async e=>{let f=e.target.files[0];if(!f)return;try{let incoming=JSON.parse(await f.text());if(!incoming.days||!incoming.records)throw Error('Invalid backup');if(confirm('Replace current app data with this backup? Export current data first if needed.')){data={...defaults,...incoming,settings:{...defaults.settings,...incoming.settings},rewardClaims:incoming.rewardClaims||[],ledger:incoming.ledger||[],lifeCells:Number(incoming.lifeCells)||0};save();renderAll();alert('Backup imported.')}}catch(err){alert('Could not import this backup file.')}e.target.value=''};
+$('importFile').onchange=async e=>{let f=e.target.files[0];if(!f)return;try{let incoming=JSON.parse(await f.text());if(!incoming.days||!incoming.records)throw Error('Invalid backup');if(confirm('Replace current app data with this backup? Export current data first if needed.')){data={...defaults,...incoming,settings:{...defaults.settings,...incoming.settings},habitDefs:Array.isArray(incoming.habitDefs)?incoming.habitDefs:structuredClone(defaultHabits),rewardClaims:incoming.rewardClaims||[],ledger:incoming.ledger||[],lifeCells:Number(incoming.lifeCells)||0};save();renderAll();alert('Backup imported.')}}catch(err){alert('Could not import this backup file.')}e.target.value=''};
 $('resetBtn').onclick=()=>{if(confirm('Permanently delete all app data on this device? Export a backup first.')){localStorage.removeItem(KEY);data=structuredClone(defaults);save();renderAll()}};
 $('waterTarget').value=data.settings.waterTarget;$('readingTarget').value=data.settings.readingTarget;$('studyTarget').value=data.settings.studyTarget;$('weekStart').value=data.settings.weekStart;$('examDate').value=data.settings.examDate;
 let deferredPrompt=null;window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredPrompt=e;$('installBtn').classList.remove('hidden')});$('installBtn').onclick=async()=>{if(!deferredPrompt)return;deferredPrompt.prompt();await deferredPrompt.userChoice;deferredPrompt=null;$('installBtn').classList.add('hidden')};
 // Register relative to this project path; wait for page load and expose errors for diagnosis.
 if('serviceWorker'in navigator&&location.protocol!=='file:'){window.addEventListener('load',()=>navigator.serviceWorker.register(new URL('sw.js',document.baseURI),{scope:new URL('./',document.baseURI).pathname}).catch(err=>console.error('Service worker registration failed:',err)))}
-renderAll();
+checkHabitRewards(currentDate);renderAll();

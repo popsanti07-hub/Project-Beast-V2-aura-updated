@@ -4,12 +4,13 @@ A mobile-first Progressive Web App for PET preparation, daily habits, Life Cells
 
 ## Deploy to GitHub Pages
 
-1. Download and extract this ZIP.
-2. Open your existing GitHub repository.
-3. Upload the contents of the `Projects-main` folder to the same published folder/path that currently hosts the app. Keep the existing filenames.
-4. Commit the changes.
-5. Open the deployed app online once and wait for it to finish loading. Refresh once to activate the new service worker.
-6. Test the app online before testing offline.
+1. Export a JSON backup from the currently deployed app before replacing files.
+2. Download and extract this ZIP.
+3. Open your existing GitHub repository and locate the folder currently published by GitHub Pages.
+4. Upload/replace the extracted app files (`index.html`, `app.js`, `styles.css`, `sw.js`, manifest and icons) in that same published folder. Do not create an extra nested folder.
+5. Commit the changes and wait for the GitHub Pages deployment to complete.
+6. Open the deployed app in your browser. The new service worker uses network-first loading for the app shell and removes the previous Beast Mode cache.
+7. Confirm the app version loads, then test habit editing, reward reversal, reports and backup/import.
 
 ## Existing data compatibility
 
@@ -21,19 +22,20 @@ Importing a JSON backup replaces the current local data after confirmation. Expo
 
 ## Life Cells rules
 
-- +10 LC per completed daily habit (8 habits), once per date.
-- +50 LC when all eight habits are completed for a date, once per date.
+- +10 LC per completed active habit, once per date.
+- +50 LC when all active habits are completed for a date.
 - +150 LC after all seven daily completion bonuses are earned in a configured calendar week.
-- Previously earned Life Cells are not deducted when a habit is later unticked or a day is missed.
+- Habit and daily/weekly completion rewards are reversible: unchecking a habit or lowering a numeric value below its target removes the associated reward; completing it again restores the reward.
+- Archiving a habit hides it from future tracking while retaining its historical day data.
 
 ## Offline behavior
 
-The service worker caches the app shell and uses a versioned cache (`beast-mode-v2`). It is configured for a project subpath such as GitHub Pages `/Projects/`. Offline behavior still needs to be verified on the actual deployed URL and target Android browser.
+The service worker uses the versioned cache (`beast-mode-v4`) and network-first loading for the app shell so updated files are fetched after deployment. It is configured for a project subpath such as GitHub Pages `/Projects/`. Offline behavior still needs to be verified on the actual deployed URL and target Android browser.
 
 ## Notes
 
 - Data is stored locally in the browser; it is not cloud-synced.
-- Water, reading and study targets can be adjusted in Settings.
+- Water, reading and study targets can be adjusted in Settings. Habits can be renamed, given a new description/icon, archived or added from the Habits screen. Custom habits can also be permanently removed from the active definition list; their old day records remain stored. Custom minute-based habits support a daily target.
 - Life Cells are motivational points, not money or a medical measure.
 - The app does not claim guaranteed health benefits from habit streaks.
 

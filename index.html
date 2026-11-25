@@ -36,10 +36,10 @@
 
  <section id="habits" class="view">
   <div class="section-head"><div><div class="eyebrow">BUILD YOUR DAILY SYSTEM</div><h2>Good Habit Tracker</h2></div><span class="pill green">+10 LC each</span></div>
-  <div class="panel"><div class="row between"><div><div class="muted">WATER TARGET</div><h2><span id="waterValue">0</span> <small>/ 3 L</small></h2></div><div class="water-icon">💧</div></div>
+  <div class="panel"><div class="row between"><div><div class="muted">WATER TARGET</div><h2><span id="waterValue">0</span> <small id="waterTargetLabel">/ 3 L</small></h2></div><div class="water-icon">💧</div></div>
    <div class="track large"><i id="waterBar"></i></div><div class="water-controls"><button id="waterMinus" class="secondary">− 250 ml</button><button id="waterPlus" class="primary">+ 250 ml</button></div><p class="hint">Set your daily target in settings. Water reward is earned when the target is reached.</p>
   </div>
-  <div id="habitList" class="habit-list"></div>
+  <div class="row between habit-toolbar"><p class="hint">Edit, archive or add habits. Changes are saved on this device.</p><button id="addHabitBtn" class="secondary">+ Add habit</button></div><div id="habitList" class="habit-list"></div>
   <div class="panel"><h3>Daily discipline</h3><div class="row between"><span>Habits completed</span><b id="habitCount">0 / 8</b></div><div class="track"><i id="habitBar"></i></div><p id="habitMessage" class="hint">Complete your habits to earn Life Cells.</p></div>
  </section>
 
@@ -61,7 +61,7 @@
   <div class="panel reward-hero"><div class="muted">YOUR LIFE CELLS BALANCE</div><strong id="rewardBalance">0 LC</strong><p id="rewardLevel">Level 1 · Beginner</p><div class="track large"><i id="rewardBar"></i></div></div>
   <div class="panel"><h3>Milestone benefits</h3><p class="hint">Milestones celebrate consistency. Health benefits vary by person; the app does not claim guaranteed medical outcomes.</p><div id="milestones" class="milestone-list"></div></div>
   <div class="panel"><h3>Recent Life Cells activity</h3><div id="ledgerList" class="history-list"></div></div>
-  <div class="panel"><h3>How Life Cells work</h3><ul class="benefits"><li>+10 LC for each completed daily habit, once per date.</li><li>+50 LC when all eight habits are completed for a day.</li><li>+150 LC after seven fully completed habit days in a calendar week.</li><li>Earned Life Cells and past achievements are never removed for a missed day.</li></ul></div>
+  <div class="panel"><h3>How Life Cells work</h3><ul class="benefits"><li>+10 LC for each completed daily habit, once per date.</li><li>+50 LC when all active habits are completed for a day.</li><li>+150 LC after seven fully completed habit days in a calendar week.</li><li>Habit and daily-completion rewards are reversible if you untick or reduce a completed habit. Other achievements remain in your history.</li></ul></div>
  </section>
 
  <section id="reports" class="view">
